@@ -39,6 +39,7 @@ typedef struct {
 // 4. Ép kiểu địa chỉ vật lý thành Con trỏ Cấu trúc
 #define RCC       ((RCC_TypeDef *) 0x40021000)
 #define GPIOA     ((GPIO_TypeDef *) 0x40010800)
+#define GPIOB     ((GPIO_TypeDef *) 0x40010C00)
 #define GPIOC     ((GPIO_TypeDef *) 0x40011000)
 #define SysTick   ((SysTick_TypeDef *) 0xE000E010)
 
