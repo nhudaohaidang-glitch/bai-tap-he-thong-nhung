@@ -1,6 +1,6 @@
 #include "stm32f10x.h"
 
-// Hàm delay (tương đối cho 8MHz)
+// Hàm delay cân chỉnh cho xung nhịp nội 8MHz
 void delay_ms(uint16_t t) {
     volatile int i, j;
     for (i = 0; i < t; i++) {
@@ -9,40 +9,44 @@ void delay_ms(uint16_t t) {
 }
 
 int main(void) {
-    // 1. Cấp xung nhịp cho Port A
-    RCC->APB2ENR |= (1 << 2);
+    uint16_t current_state = 0;
+    uint16_t confirmed_state = 0;
+    uint16_t output_res = 0;
 
-    // 2. Cấu hình các chân PA0 và PA1
-    // Xóa cấu hình cũ của 2 chân (8 bit thấp nhất của CRL)
-    GPIOA->CRL &= ~0x000000FF; 
+    // 1. Cấp xung nhịp cho Port A (bit 2) và Port B (bit 3)
+    RCC->APB2ENR |= (1 << 2) | (1 << 3); 
+
+    // 2. Cấu hình PA0-PA7 làm Input Pull-up
+    // CRL quản lý nửa dưới (chân 0-7). Mã 8 là Input Pull-up/down
+    GPIOA->CRL &= ~0xFFFFFFFF; // Xóa sạch cấu hình cũ
+    GPIOA->CRL |= 0x88888888;
     
-    // PA1 (Output 50MHz Push-pull): Mode = 11, CNF = 00 -> mã là 3
-    // PA0 (Input Pull-up/Pull-down): Mode = 00, CNF = 10 -> mã là 8
-    // Ghép lại ta có 0x38 cho 2 chân này
-    GPIOA->CRL |= 0x00000038;
+    // Ghi mức 1 vào 8 bit thấp ODR để kích hoạt điện trở kéo lên
+    GPIOA->ODR |= 0x00FF; 
 
-    // 3. Kích hoạt điện trở kéo lên (Pull-up) cho PA0
-    // Ở chế độ Input, ghi mức 1 vào ODR tương đương với việc bật Pull-up.
-    // LƯU Ý PHẦN CỨNG: Một đầu nút nhấn nối vào PA0, đầu còn lại nối xuống GND (đất).
-    GPIOA->ODR |= (1 << 0);
+    // 3. Cấu hình PB8-PB15 làm Output Push-pull 50MHz
+    // CRH quản lý nửa trên (chân 8-15). Mã 3 là Output 50MHz Push-pull
+    GPIOB->CRH &= ~0xFFFFFFFF; // Xóa sạch cấu hình cũ
+    GPIOB->CRH |= 0x33333333;  
 
-    while (1) {
-        // Đọc trạng thái chân PA0 từ thanh ghi IDR (Nhấn nút = 0, Nhả nút = 1)
-        if ((GPIOA->IDR & (1 << 0)) == 0) {
-            
-            // Trễ khoảng 20ms để chống dội phím (Debounce)
-            delay_ms(20);
-            
-            // Kiểm tra lại để chắc chắn không phải nhiễu
-            if ((GPIOA->IDR & (1 << 0)) == 0) {
-                
-                // CỐT LÕI BÀI TOÁN: Vòng lặp chờ người dùng NHẢ NÚT ra
-                // Chừng nào phím còn bị giữ (PA0 == 0), hệ thống sẽ kẹt ở đây
-                while ((GPIOA->IDR & (1 << 0)) == 0) {}
-                
-                // Người dùng vừa nhả nút ra, tiến hành đảo trạng thái LED PA1
-                GPIOA->ODR ^= (1 << 1);
-            }
+    while(1) {
+        // BƯỚC 1: Đọc trạng thái thô của 8 nút nhấn
+        current_state = GPIOA->IDR & 0x00FF;
+        
+        // BƯỚC 2: Trễ 20ms để chờ các tiếp điểm cơ khí hết rung (chống dội)
+        delay_ms(20);
+        
+        // BƯỚC 3: Đọc lại và so sánh. Nếu sau 20ms mà tín hiệu vẫn không đổi -> phím đã ổn định
+        if (current_state == (GPIOA->IDR & 0x00FF)) {
+            confirmed_state = current_state;
         }
+
+        // BƯỚC 4: Xử lý logic đảo bit theo đề bài (0 thành 1, 1 thành 0)
+        output_res = (~confirmed_state) & 0x00FF;
+
+        // BƯỚC 5: Xuất tín hiệu ra dàn LED ở PB8 - PB15
+        // Dịch trái 8 bit để đẩy dữ liệu lên nửa trên của Port B
+        // Dùng mặt nạ 0x00FF để bảo vệ an toàn, không làm hỏng dữ liệu đang có ở PB0-PB7
+        GPIOB->ODR = (GPIOB->ODR & 0x00FF) | (output_res << 8);
     }
 }
