@@ -1,20 +1,21 @@
 CC = arm-none-eabi-gcc
-# Khai báo CPU và chỉ điểm dùng linker.ld
-CFLAGS = -mcpu=cortex-m3 -mthumb -nostartfiles -T linker.ld -I.
+OBJCOPY = arm-none-eabi-objcopy
+CFLAGS = -mcpu=cortex-m3 -mthumb -O2 -Wall -g
+LDFLAGS = -T linker.ld -nostdlib
+
+# Tự động gộp TẤT CẢ file .c trong thư mục và file startup.s
+SOURCES = $(wildcard *.c) startup.s
 
 all: main.bin
 
-# Đóng gói ra file bin
+main.elf: $(SOURCES)
+	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@
+
 main.bin: main.elf
-	arm-none-eabi-objcopy -O binary main.elf main.bin
-
-# Biên dịch cả main.c và startup.s
-main.elf: main.c startup.s
-	$(CC) $(CFLAGS) main.c startup.s -o main.elf
-
-# Lệnh nạp code
-flash: main.bin
-	st-flash write main.bin 0x8000000
+	$(OBJCOPY) -O binary $< $@
 
 clean:
 	rm -f *.elf *.bin
+
+flash: main.bin
+	st-flash write main.bin 0x08000000
