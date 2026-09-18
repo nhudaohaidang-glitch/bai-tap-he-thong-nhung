@@ -1,7 +1,6 @@
 void HAL_SYSTICK_Callback(void);
 #include "stm32f10x.h"
 
-// --- KHU VỰC "GIẢ LẬP" THƯ VIỆN HAL ---
 void HAL_Init(void) {
     SysTick->LOAD = 7999;
     SysTick->VAL = 0;
@@ -37,13 +36,10 @@ __attribute__((weak)) void HAL_SYSTICK_Callback(void) {
         count_0_1hz = 0;
     }
 }
-// --- KẾT THÚC KHU VỰC GIẢ LẬP HAL ---
 
 int main(void) {
-    // 1. Cấu hình SysTick bằng "HAL"
     HAL_Init();
 
-    // 2. Cấu hình GPIO bằng thanh ghi
     RCC->APB2ENR |= (1 << 2);
     
     GPIOA->CRL &= ~0x00000FFF;
