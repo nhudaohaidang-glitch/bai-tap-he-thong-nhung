@@ -86,14 +86,6 @@ void SysTick_Handler(void)
 }
 
 
-/* =========================
-   USART1 IRQ
-   Không dùng trong BAI_2
-   ========================= */
-void USART1_IRQHandler(void)
-{
-}
-
 
 /* =========================
    MAIN
