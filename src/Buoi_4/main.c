@@ -1,79 +1,53 @@
 #include "stm32f10x.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include "string.h"
+
 
 // =========================================================================
-// 1. CÁC HÀM HOOK VÀ THƯ VIỆN BỔ SUNG CỦA HỆ ĐIỀU HÀNH
+// 2. KHAI BÁO CẤU TRÚC THAM SỐ CHO LED
 // =========================================================================
-void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName) {
-    (void)xTask;
-    (void)pcTaskName;
-    while (1); 
-}
-void vApplicationMallocFailedHook(void) { while(1); }
-void vApplicationIdleHook(void) {}
-void vApplicationTickHook(void) {}
-
-void *memset(void *dest, int c, unsigned int count) {
-    char *bytes = (char *)dest;
-    while (count--) *bytes++ = (char)c;
-    return dest;
-}
-void *memcpy(void *dest, const void *src, unsigned int count) {
-    char *dest8 = (char *)dest;
-    const char *src8 = (const char *)src;
-    while (count--) *dest8++ = *src8++;
-    return dest;
-}
+typedef struct {
+    uint16_t pin_mask;  // Chân điều khiển 
+    uint32_t delay_ms;  // Thời gian chờ để nháy (ms)
+} LED_Param_t;
 
 // =========================================================================
-// 2. CÁC TASK NHÁY LED VỚI TẦN SỐ ĐƯỢC YÊU CẦU
+// 3. HÀM TASK DUY NHẤT
 // =========================================================================
+void vTaskBlinkLED(void *pvParameters) {
+    LED_Param_t *pxParam = (LED_Param_t *)pvParameters;
+    
+    uint16_t pin = pxParam->pin_mask;
+    TickType_t delay_ticks = pdMS_TO_TICKS(pxParam->delay_ms);
 
-// Task 1: Nháy 10 Hz (Chu kỳ 100ms -> Chờ 50ms)
-void vTaskLED1(void *pvParameters) {
     while (1) {
-        GPIOA->ODR ^= (1 << 1);        
-        vTaskDelay(pdMS_TO_TICKS(50)); 
-    }
-}
-
-// Task 2: Nháy 1 Hz (Chu kỳ 1000ms -> Chờ 500ms)
-void vTaskLED2(void *pvParameters) {
-    while (1) {
-        GPIOA->ODR ^= (1 << 2);        
-        vTaskDelay(pdMS_TO_TICKS(500)); 
-    }
-}
-
-// Task 3: Nháy 0.1 Hz (Chu kỳ 10000ms -> Chờ 5000ms)
-void vTaskLED3(void *pvParameters) {
-    while (1) {
-        GPIOA->ODR ^= (1 << 3);        
-        vTaskDelay(pdMS_TO_TICKS(5000)); 
+        GPIOA->ODR ^= pin;          
+        vTaskDelay(delay_ticks);    
     }
 }
 
 // =========================================================================
-// 3. CHƯƠNG TRÌNH CHÍNH
+// 4. CHƯƠNG TRÌNH CHÍNH
 // =========================================================================
 int main(void) {
-    // Cấu hình phần cứng: Bật clock GPIOA
+    // Cấu hình phần cứng
     RCC->APB2ENR |= (1 << 2);
-    
-    // Cấu hình PA1, PA2, PA3 làm Output Push-Pull 2MHz
     GPIOA->CRL &= ~((0xF << 4) | (0xF << 8) | (0xF << 12)); 
     GPIOA->CRL |=  ((0x2 << 4) | (0x2 << 8) | (0x2 << 12)); 
-    
-    // Tắt cả 3 LED lúc khởi động
     GPIOA->BRR = (1 << 1) | (1 << 2) | (1 << 3); 
 
-    // Tạo các Task giao cho hệ điều hành quản lý
-    xTaskCreate(vTaskLED1, "LED_10Hz", 128, NULL, 1, NULL);
-    xTaskCreate(vTaskLED2, "LED_1Hz",  128, NULL, 1, NULL);
-    xTaskCreate(vTaskLED3, "LED_0_1Hz", 128, NULL, 1, NULL);
+    // Cấu hình thông số 3 LED (Bắt buộc có static)
+    static LED_Param_t led1 = { (1 << 1), 50 };   
+    static LED_Param_t led2 = { (1 << 2), 500 };  
+    static LED_Param_t led3 = { (1 << 3), 5000 }; 
 
-    // Khởi động bộ lập lịch (Scheduler)
+    // Gọi 3 Task sử dụng chung 1 hàm
+    xTaskCreate(vTaskBlinkLED, "Task_LED1", 128, (void *)&led1, 1, NULL);
+    xTaskCreate(vTaskBlinkLED, "Task_LED2", 128, (void *)&led2, 1, NULL);
+    xTaskCreate(vTaskBlinkLED, "Task_LED3", 128, (void *)&led3, 1, NULL);
+
+    // Khởi động hệ điều hành
     vTaskStartScheduler();
 
     while (1) {
